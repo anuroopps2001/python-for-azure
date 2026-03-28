@@ -5,7 +5,8 @@ import sys
 import argparse
 from concurrent.futures import ThreadPoolExecutor  # for parallel execution
 from azure.mgmt.network import NetworkManagementClient
-
+from collections import Counter  
+import time
 SUBSCRIPTION_ID = os.getenv("SUBSCRIPTION_ID")
 
 if not SUBSCRIPTION_ID:
@@ -82,35 +83,71 @@ def get_vms_by_tags(tag_key, tag_value):
     return vms
 
 
+# retry logic
+def retry_operation(func, *args, retries=3, delay=3, **kwargs):
+    for attempt in range(1, retries + 1):
+        try:
+            return func(*args, **kwargs)
+        
+        except Exception as e:
+            print(f"Attempt {attempt} failed: {e}")
+            
+            if attempt == retries:
+                print("Max retries reached. Giving up..!")
+                raise
+
+            time.sleep(delay)
+
+attempt_counter = {"count": 0}
+
+def fake_operation():
+    attempt_counter['count'] += 1
+    print(f"Running attepmt {attempt_counter['count']}")
+    if attempt_counter["count"] < 3:
+        raise Exception("Simulation Failed") 
+    
+    return "Success"
+
+retry_operation(fake_operation)
+
+def stop_operation(resource_group: str, vm_name: str):
+    poller = compute_client.virtual_machines.begin_deallocate(
+    resource_group_name=resource_group,
+    vm_name=vm_name
+    )
+    return poller.result()
+    
+
 def stop_vm(resource_group: str, vm_name: str, dry_run=False):
     """Stop (deallocate) a virtual machine to stop billing."""
     state = get_vm_status(resource_group=resource_group, vm_name=vm_name)
-
     if state:
         state = state.lower()
 
     if state and state.split("/")[-1] == "deallocated":
         print(f"{vm_name} → already stopped")
-        return
+        return "skipped"
 
     if dry_run:
         print(f"'{vm_name}' -> WILL STOP (dry run)")
-        return
-
+        return "skipped"
     try:
        print(f"{vm_name} → stopping (RG: {resource_group})")
-
-       poller = compute_client.virtual_machines.begin_deallocate(
-           resource_group_name=resource_group,
-           vm_name=vm_name
-       )
-       poller.result()
-
+       retry_operation(stop_operation,resource_group, vm_name)
        print(f"'{vm_name}' -> stopped")
+       return "success"
     
     except Exception as e:
         print(f"{vm_name} → ERROR: {e}")
+        return "failed"
 
+
+def start_operation(resource_group: str, vm_name: str):
+    poller = compute_client.virtual_machines.begin_start(
+            resource_group_name=resource_group,
+            vm_name=vm_name
+            )
+    return poller.result()
 
 def start_vm(resource_group: str, vm_name: str, dry_run=False):
     """Start a virtual machine"""
@@ -121,25 +158,26 @@ def start_vm(resource_group: str, vm_name: str, dry_run=False):
         print(f"VM '{vm_name}' is already running. Skipping..!!!")
         ip = get_public_ip(resource_group=resource_group, vm_name=vm_name)
         print(f"Current Public IP is: {ip}")
-        return
+        return "skipped"
     
     if dry_run:
         print(f"'{vm_name}' -> WILL START (dry run)")
+        return "skipped"
     
     try:
         print(f"Starting a VM '{vm_name}' in RG '{resource_group}'..")
-        poller = compute_client.virtual_machines.begin_start(
-            resource_group_name=resource_group,
-            vm_name=vm_name
-            )
-        poller.result()
+
+        retry_operation(start_operation, resource_group, vm_name)
+
         ip = get_public_ip(resource_group=resource_group, vm_name=vm_name)
         print(f"'{vm_name}' -> Started and Public is {ip}")
+        return "success"
     
     except Exception as e:
         print("Error: You must provide either --vm OR --tag")
         print_usage_examples()
         sys.exit(1)
+        return "failed"
 
 
 # Public IP details of VMs
@@ -175,14 +213,26 @@ def process_vms(action, vms, dry_run):
         # print("DEBUG VM OBJECT:", vm)
         # print("DEBUG TYPE:", type(vm))
         # print("DEBUG NAME:", vm.name)
-
+        summary = {
+            "success" : 0,
+            "skipped" : 0,
+            "failed"  : 0
+        }
         rg = get_resource_group(vm=vm)
-
+      
         if action == "stop":
-            stop_vm(resource_group=rg, vm_name=vm.name, dry_run=dry_run)
+            result = stop_vm(resource_group=rg, vm_name=vm.name, dry_run=dry_run)
+            summary[result] += 1
 
         elif action == "start":
-            start_vm(resource_group=rg, vm_name=vm.name, dry_run=dry_run)
+            result = start_vm(resource_group=rg, vm_name=vm.name, dry_run=dry_run)
+            summary[result] += 1
+    print("\n===== RESULT SUMMARY =====")
+    print(f"✔ Success: {summary['success']}")
+    print(f"⚠ Skipped: {summary['skipped']}")
+    print(f"✖ Failed: {summary['failed']}")
+    print("==========================\n")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Azure VM Manager - Start/Stop/List VMs")
