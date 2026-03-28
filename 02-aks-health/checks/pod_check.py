@@ -41,7 +41,6 @@ def run_pod_checks(namespace=None):
                 issue_type="PHASE_ISSUE",
                 reason=pod.status.phase,
                 container_name=container.name,
-                message=getattr(state.waiting or state.terminated, 'message', 'N/A'),
                 suggestion="Check for node pressure or unschedulable taints."
                 ))
 
@@ -68,6 +67,7 @@ def run_pod_checks(namespace=None):
                     "namespace" : pod.metadata.namespace,
                     "container" : container.name,
                     "reason" : current_reason,
+                    "message" :getattr(state.waiting or state.terminated, 'message', 'N/A'),
                     "suggestion" : suggestion
                 })     
     print_issues(issues)
@@ -98,11 +98,12 @@ def classify_issues(state_obj):
 
     # --- Dynamic Logic for Image Issues ---
     if reason in ["ImagePullBackOff", "ErrImgePull"]:
-        if "401" in message or "unauthorized" in message:
-            return "CRITICAL", "Authentication failed. Check your ACR/Docker pull secrets."  # returns tuple
+        for word in ["auth", "denied", "401", "credential"]:
+            if word in message:
+                return "CRITICAL", "Authentication failed. Check your ACR/Docker pull secrets or 'imagePullSecrets'."  # returns tuple
         
-        if "not found" in message or "404" in message:
-            return "CRITICAL", f"Image tag might be wrong. Verify the manifest." # returns tuple
+        if any(word in message for word in ["not found", "404", "exist"]):
+            return "CRITICAL", "Image or Repository not found. Check for typos in the image name or tag." # returns tuple
         
         return "CRITICAL", "Network or Registry timeout. Check Azure Private Link status." # returns tuple
     
