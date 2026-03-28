@@ -56,10 +56,10 @@ def run_pod_checks(namespace=None):
 
                 issues.append({
                     "type" : "CRITICAL",
-                    "pod" : pod.metadata.name
-                    "namespace" : pod.metadata.namespace
-                    "container" : container.name
-                    "reason" : reason
+                    "pod" : pod.metadata.name,
+                    "namespace" : pod.metadata.namespace,
+                    "container" : container.name,
+                    "reason" : reason,
                     "message" : msg
                 })     
     print_issues(issues)
