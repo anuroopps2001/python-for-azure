@@ -98,18 +98,6 @@ def retry_operation(func, *args, retries=3, delay=3, **kwargs):
 
             time.sleep(delay)
 
-attempt_counter = {"count": 0}
-
-def fake_operation():
-    attempt_counter['count'] += 1
-    print(f"Running attepmt {attempt_counter['count']}")
-    if attempt_counter["count"] < 3:
-        raise Exception("Simulation Failed") 
-    
-    return "Success"
-
-retry_operation(fake_operation)
-
 def stop_operation(resource_group: str, vm_name: str):
     poller = compute_client.virtual_machines.begin_deallocate(
     resource_group_name=resource_group,

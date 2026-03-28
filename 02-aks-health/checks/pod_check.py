@@ -26,4 +26,25 @@ def run_pod_checks(namespace=None):
 #         ...
 #     ]
 # }
-      
+    for pod in pods.items:
+        for container in pod.status.container_statuses or []:
+            state = container.state
+
+            if state.waiting:
+                reason = state.waiting.reason
+
+                if reason in ["CrashLoopBackOff", "ImagePullBackOff"]:
+                    issues.append({
+                        "type": "CRITICAL",
+                        "pod" : pod.metadata.name,
+                        "namespace": namespace,
+                        "reason" : reason
+                    })      
+    print_issues(issues)
+
+def print_issues(issues):
+    if not issues:
+        print("No Critical Issues found..")
+        return
+    for issue in issues:
+        print(f"[{issue['type']}] {issue['namespace']}/{issue['pod']} -> {issue['reason']}")
