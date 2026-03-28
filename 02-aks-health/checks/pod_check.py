@@ -35,7 +35,7 @@ def run_pod_checks(namespace=None):
         
         # Check if the overall Pod phase is not 'Running' or 'Succeeded'
         if pod.status.phase not in ["Running", "Succeeded"]:
-            issues.append(create_issue_dict(pod, "PHASE_ISSUE", pod.status.phase))
+            issues.append(create_issue_dict(pod, issue_type="PHASE_ISSUE", reason=pod.status.phase, container_name=container.name, message="The pod is stuck in a non-running phase"))
 
         # Check individual containers (even if Pod is 'Running', one container might be crashing)
         container_statuses = pod.status.container_statuses or []
@@ -63,6 +63,21 @@ def run_pod_checks(namespace=None):
                     "message" : msg
                 })     
     print_issues(issues)
+
+# The '*' means everything after it MUST be called with a name (e.g., issue_type="..", reason="...", container_name="..", message="..")
+def create_issue_dict(pod, *, issue_type, reason, container_name="N/A",message="No message"):
+    """
+    Standardizes the issue dictionary for the health check report.
+    """
+
+    return {
+        "type" : issue_type, 
+        "pod" : pod.metadata.name,
+        "namespace" : pod.metadata.namespace,
+        "container" : container_name,
+        "reason" : reason,
+        "message" : message
+    }
 
 def print_issues(issues):
     if not issues:
