@@ -36,7 +36,14 @@ def run_pod_checks(namespace=None):
         # Check if the overall Pod phase is not 'Running' or 'Succeeded'
         if pod.status.phase not in ["Running", "Succeeded"]:
             # A Pod has an overall Phase (the high-level status) and individual Container States (the granular details).
-            issues.append(create_issue_dict(pod, issue_type="PHASE_ISSUE", reason=pod.status.phase, container_name=container.name, message="The pod is stuck in a non-running phase"))
+            issues.append(create_issue_dict(
+                pod, 
+                issue_type="PHASE_ISSUE",
+                reason=pod.status.phase,
+                container_name=container.name,
+                message=getattr(state.waiting or state.terminated, 'message', 'N/A'),
+                suggestion="Check for node pressure or unschedulable taints."
+                ))
 
         # Check individual containers (even if Pod is 'Running', one container might be crashing)
         container_statuses = pod.status.container_statuses or []
@@ -66,7 +73,7 @@ def run_pod_checks(namespace=None):
     print_issues(issues)
 
 # The '*' means everything after it MUST be called with a name (e.g., issue_type="..", reason="...", container_name="..", message="..")
-def create_issue_dict(pod, *, issue_type, reason, container_name="N/A",message="No message"):
+def create_issue_dict(pod, *, issue_type, reason, container_name="N/A",message="No message", suggestion="No suggestion available"):
     """
     Standardizes the issue dictionary for the health check report.
     """
@@ -77,7 +84,8 @@ def create_issue_dict(pod, *, issue_type, reason, container_name="N/A",message="
         "namespace" : pod.metadata.namespace,
         "container" : container_name,
         "reason" : reason,
-        "message" : message
+        "message" : message,
+        "suggestion": suggestion
     }
 
 def classify_issues(state_obj):
@@ -116,6 +124,6 @@ def print_issues(issues):
     
     print("\n===== AKS Health Report =====\n")
     for issue in issues:
-        print(f"[{issue['severity']}] {issue['namespace']}/{issue['pod']}")
+        print(f"[{issue['type']}] {issue['namespace']}/{issue['pod']}")
         print(f"  → Reason     : {issue['reason']}")
         print(f"  → Suggestion : {issue['suggestion']}\n")
