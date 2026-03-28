@@ -35,32 +35,33 @@ def run_pod_checks(namespace=None):
         
         # Check if the overall Pod phase is not 'Running' or 'Succeeded'
         if pod.status.phase not in ["Running", "Succeeded"]:
+            # A Pod has an overall Phase (the high-level status) and individual Container States (the granular details).
             issues.append(create_issue_dict(pod, issue_type="PHASE_ISSUE", reason=pod.status.phase, container_name=container.name, message="The pod is stuck in a non-running phase"))
 
         # Check individual containers (even if Pod is 'Running', one container might be crashing)
         container_statuses = pod.status.container_statuses or []
+
         for container in container_statuses:
+            # We only care if it's NOT ready
             if not container.ready:
                 state = container.state
 
-                if state.waiting:
-                    reason = state.waiting.reason
-                    msg = state.waiting.message
+                severity, suggestion = classify_issues(state) # storing the returned tuple values into separate vars.
+                
 
-                elif state.terminated:
-                    reason = state.terminated.reason or f"ExitCode:{state.terminated.exit_code}"
-                    msg = state.terminated.message
-                else:
-                    reason = 'unknown'
-                    msg = "Container is not ready but has no specific waiting/terminated state"
-
+                # Step 1: Python looks at (state.waiting or state.terminated).
+                # Step 2: If waiting is None, it picks terminated.
+                # Step 3: Now it has a valid object (the "terminated" object).
+                # Step 4: It then calls .reason on that specific object.
+                current_reason = (state.waiting or state.terminated).reason
+ 
                 issues.append({
                     "type" : "CRITICAL",
                     "pod" : pod.metadata.name,
                     "namespace" : pod.metadata.namespace,
                     "container" : container.name,
-                    "reason" : reason,
-                    "message" : msg
+                    "reason" : current_reason,
+                    "suggestion" : suggestion
                 })     
     print_issues(issues)
 
@@ -79,9 +80,42 @@ def create_issue_dict(pod, *, issue_type, reason, container_name="N/A",message="
         "message" : message
     }
 
+def classify_issues(state_obj):
+    details = state_obj.waiting or state_obj.terminated
+    if not details:
+        return "INFO", "No details available"
+    
+    reason = details.reason
+    message = (details.message or "").lower()
+
+    # --- Dynamic Logic for Image Issues ---
+    if reason in ["ImagePullBackOff", "ErrImgePull"]:
+        if "401" in message or "unauthorized" in message:
+            return "CRITICAL", "Authentication failed. Check your ACR/Docker pull secrets."  # returns tuple
+        
+        if "not found" in message or "404" in message:
+            return "CRITICAL", f"Image tag might be wrong. Verify the manifest." # returns tuple
+        
+        return "CRITICAL", "Network or Registry timeout. Check Azure Private Link status." # returns tuple
+    
+    # --- Dynamic Logic for Crashes ---
+    if reason == "CrashLoopBackOff":
+        return "CRITICAL", "Application is crashing. Run: kubectl logs <pod> --previous"  # returns tuple
+    
+    # --- Dynamic Logic for Memory Issues ---
+    if reason == "OOMKilled":
+        return "CRITICAL", "Memory limit exceeded. Increase resources.limits.memory in YAML."  # returns tuple
+    
+    # Fallback for anything else
+    return "WARNING", f"Unrecognized issue: {reason}. Check describe pod for clues."
+
 def print_issues(issues):
     if not issues:
         print("No Critical Issues found..")
         return
+    
+    print("\n===== AKS Health Report =====\n")
     for issue in issues:
-        print(f"[{issue['type']}] {issue['namespace']}/{issue['pod']} -> {issue['reason']}")
+        print(f"[{issue['severity']}] {issue['namespace']}/{issue['pod']}")
+        print(f"  → Reason     : {issue['reason']}")
+        print(f"  → Suggestion : {issue['suggestion']}\n")
