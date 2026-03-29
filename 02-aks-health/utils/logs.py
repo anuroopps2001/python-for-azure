@@ -10,6 +10,9 @@ def get_pod_logs(pod_name, namespace):
         print(f"\n====== Logs for {namespace}/{pod_name} ======")
         # To get the objects stored inside v1
         print(json.dumps(v1))
+        pod = v1.list_pod_for_all_namespaces()
+        print(json.dumps(pod.to_dict(), indent=2, default=str))
+        
         logs = v1.read_namespaced_pod_log(
             name=pod_name,
             namespace=namespace,
@@ -20,4 +23,3 @@ def get_pod_logs(pod_name, namespace):
 
     except Exception as e:
         print(f"Error fetching logs {e}")
-        
