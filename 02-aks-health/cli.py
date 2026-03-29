@@ -18,6 +18,9 @@ def run():
     # Now --pod is REQUIRED, but ONLY for the 'logs' command
     log_parser.add_argument("--pod", required=True, help="Name of the pod to inspect")
 
+    # Now --container flag if required
+    log_parser.add_argument("--container", help="Name of the container to fetch the logs")
+
     args = parser.parse_args()
 
     if args.command == "scan":
