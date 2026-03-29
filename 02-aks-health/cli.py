@@ -32,4 +32,4 @@ def run():
         if not args.pod:
             print(f"Error: --pod is required for the logs command")
             return
-        get_pod_logs(args.pod, args.namespace)
+        get_pod_logs(args.pod, args.namespace, target_container=args.container)
