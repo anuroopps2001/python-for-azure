@@ -15,36 +15,34 @@ def get_pod_logs(pod_name, namespace, target_container=None):
         containers_list = []
         for c in pod_info.spec.containers:
             containers_list.append(c.name)
-        
-        # List container actual status
-            for pod in pod_info.items:
-                status = pod.status.container_statuses or []
+
+            # If there's only 1 container, and if user don't provide --container, don't bother asking the user
+            if not target_container and len(containers_list) == 1:
+                target_container = containers_list[0]
             
-                container_name = status.name  # The name (e.g. "azurefile")
+            # IF we still don't have a container, show the STATUS of all containers
+            if not target_container:
+                print(f"\n[!] Pod {pod_info.metadata.name} has {len(containers_list)} containers:")
     
-    # Determine the "Human Readable" status
-                if status.state.running:
-                    current_state = "Running"
-                elif status.state.waiting:
-        # This is where 'CrashLoopBackOff' or 'ContainerCreating' lives
-                    current_state = f"Waiting ({status.state.waiting.reason})"
-                elif status.state.terminated:
-                    current_state = f"Terminated (Exit Code: {status.state.terminated.exit_code})"
-                else:
-                    current_state = "Unknown"
+                # Loop through the STATUSES to show why we need a choice
+                for status in (pod_info.status.container_statuses or []):
+                        c_name = status.name
+                        # Determine the "Human Readable" status
+                        if status.state.running:
+                            current_state = "Running"
+                        elif status.state.waiting:
+                        # This is where 'CrashLoopBackOff' or 'ContainerCreating' lives
+                            current_state = f"Waiting ({status.state.waiting.reason})"
+                        elif status.state.terminated:
+                            current_state = f"Terminated (Exit Code: {status.state.terminated.exit_code})"
+                        else:
+                            current_state = "Unknown"
 
-    # Now print both
-                print(f"  - {container_name}: {current_state}")
-
-        # If there's only 1 container, and if user don't provide --container, don't bother asking the user
-                if not target_container and len(containers_list) == 1:
-                    target_container = containers_list[0]
-
-                if not target_container:
-            # This handles pods with 2+ containers where the user forgot --container
-                    print(f"\n[!] Pod {pod_info.metadata.name} has {len(containers_list)} containers: {', '.join(containers_list)}")
-                    print(f"Usage: python cli.py logs --pod {pod_name} --container <name>")
-                    return 
+                        # Now print both
+                        print(f"  - {c_name}: {current_state}")
+                        
+                print(f"\nUsage: python main.py logs --pod {pod_name} --container <name>")
+ 
 
                 if target_container not in containers_list:
                     print(f"Error: container '{target_container}' not found.")
