@@ -17,12 +17,16 @@ def get_pod_logs(pod_name, namespace, target_container=None):
 
         # Scenario A: User didn't specify a container
         if not target_container:
-            print(f"\n[!] Pod {pod_info.name} has {len(containers_list)} containers: {', '.join(containers_list) }")
+            print(f"\n[!] Pod {pod_info.metadata.name} has {len(containers_list)} containers: {', '.join(containers_list) }")
             print(f"Usage: python cli.py logs --pod {pod_name} --container <name>")
             return # Exit early so we don't fetch random logs
         
+        # If there's only 1 container, and if user don't provide --container, don't bother asking the user
+        if not target_container and len(containers_list) == 1:
+            target_container = containers_list[0]
+
         # Scenario B: User specified a container that doesn't exist
-        if target_container not in containers_list:
+        elif target_container not in containers_list:
             print(f"Error: container {target_container} not found..")
             print(f"Available choices: {', '.join(containers_list)}")
 
