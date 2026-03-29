@@ -11,11 +11,17 @@ def get_pod_logs(pod_name, namespace):
         # To get the objects stored inside v1
         print(json.dumps(v1))
         pod = v1.list_pod_for_all_namespaces()
-        print(json.dumps(pod.to_dict(), indent=2, default=str))
-        
+        for i in pod.items:
+            pod_name = i.metadata.name
+            namespace = i.metadata.namespace
+            container_name = i.spec.containers[0].name
+
+        print(f"To get logs, use: name={pod_name}, namespace={namespace}, container={container_name}")
+
         logs = v1.read_namespaced_pod_log(
             name=pod_name,
             namespace=namespace,
+            container = container_name,
             tail_name=50  # Last 50 lines
         )
 
