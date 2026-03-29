@@ -7,6 +7,15 @@ def get_pod_logs(pod_name, namespace, target_container=None):
     v1 = client.CoreV1Api()
 
     try:
+        # Check if namespace exists first
+        try:
+            v1.read_namespace(name=namespace)
+        except Exception as ns_error:
+            if hasattr(ns_error, 'status') and ns_error.status == 404:
+                print(f"\n[!] Error: The namespace '{namespace}' does not exist.")
+                # Optional: Show a list of available namespaces
+                return
+            
         print(f"\n====== Logs for {namespace}/{pod_name} ======")
         # Get the details of the pod, user passed 
         pod_info = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
