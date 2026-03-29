@@ -25,24 +25,27 @@ def get_pod_logs(pod_name, namespace, target_container=None):
             print(f"\n[!] Pod {pod_info.metadata.name} has {len(containers_list)} containers:")
     
                 # Loop through the STATUSES to show why we need a choice
-            for status in (pod_info.status.container_statuses or []):
-                        c_name = status.name
+            for i, status in enumerate(pod_info.status.container_statuses or []):
+                c_name = status.name
                         # Determine the "Human Readable" status
-                        if status.state.running:
-                            current_state = "Running"
-                        elif status.state.waiting:
+                if status.state.running:
+                    current_state = "Running"
+                elif status.state.waiting:
                         # This is where 'CrashLoopBackOff' or 'ContainerCreating' lives
-                            current_state = f"Waiting ({status.state.waiting.reason})"
-                        elif status.state.terminated:
-                            current_state = f"Terminated (Exit Code: {status.state.terminated.exit_code})"
-                        else:
-                            current_state = "Unknown"
-
+                    current_state = f"Waiting ({status.state.waiting.reason})"
+                elif status.state.terminated:
+                    current_state = f"Terminated (Exit Code: {status.state.terminated.exit_code})"
+                else:
+                    current_state = "Unknown"
+                    
+                # Mark the first one as (default)
+                default_tag = " (default)" if i == 0 else ""
                         # Now print both
-                        print(f"  - {c_name}: {current_state}")
+                print(f"  - {c_name}{default_tag}: {current_state}")
 
+            
             print(f"\nUsage: python main.py logs --pod {pod_name} --container <name>")
- 
+            return
 
         if target_container not in containers_list:
                 print(f"Error: container '{target_container}' not found.")
