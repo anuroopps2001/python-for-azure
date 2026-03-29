@@ -62,14 +62,14 @@ def run_pod_checks(namespace=None):
                 current_reason = (state.waiting or state.terminated).reason
  
                 issues.append({
-                    "type" : "CRITICAL",
+                    "type" : severity,
                     "pod" : pod.metadata.name,
                     "namespace" : pod.metadata.namespace,
                     "container" : container.name,
                     "reason" : current_reason,
                     "message" :getattr(state.waiting or state.terminated, 'message', 'N/A'),
                     "suggestion" : suggestion
-                })     
+                })
     print_issues(issues)
 
 # The '*' means everything after it MUST be called with a name (e.g., issue_type="..", reason="...", container_name="..", message="..")
@@ -122,7 +122,14 @@ def print_issues(issues):
     if not issues:
         print("No Critical Issues found..")
         return
-    
+    severity_order = {
+        "CRITICAL" : 1,
+        "WARNING" : 2,
+        "INFO" : 3
+    }
+
+    issues.sort(key=lambda x: severity_order.get(x["type"], 3))
+
     print("\n===== AKS Health Report =====\n")
     for issue in issues:
         print(f"[{issue['type']}] {issue['namespace']}/{issue['pod']}")
