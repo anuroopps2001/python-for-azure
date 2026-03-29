@@ -40,24 +40,24 @@ def get_pod_logs(pod_name, namespace, target_container=None):
 
                         # Now print both
                         print(f"  - {c_name}: {current_state}")
-                        
+
                 print(f"\nUsage: python main.py logs --pod {pod_name} --container <name>")
  
 
-                if target_container not in containers_list:
-                    print(f"Error: container '{target_container}' not found.")
-                    print(f"Available choices: {', '.join(containers_list)}")
-                    return
+            if target_container not in containers_list:
+                print(f"Error: container '{target_container}' not found.")
+                print(f"Available choices: {', '.join(containers_list)}")
+                return
 
         # 4. EXECUTION: Now that we are 100% sure target_container is valid, fetch logs
-                print(f"--- Fetching logs for container: {target_container} ---")
-                logs = v1.read_namespaced_pod_log(
-                    name=pod_name,
-                    namespace=namespace,
-                    container=target_container,
-                    tail_lines=50  # Fixed from tail_name to tail_lines
-                )
-                print(logs if logs else "[No logs found]")
+            print(f"--- Fetching logs for container: {target_container} ---")
+            logs = v1.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                container=target_container,
+                tail_lines=50  # Fixed from tail_name to tail_lines
+            )
+            print(logs if logs else "[No logs found]")
 
     except Exception as e:
         print(f"Error fetching logs {e}")
